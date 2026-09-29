@@ -1,0 +1,14 @@
+### Vota un ristorante
+POST http://localhost:8080/votes
+Content-Type: application/json
+
+{
+  "user": "alice",
+  "restaurantId": "sakura"
+}
+
+### Suggerimento per la cena
+GET http://localhost:8080/suggestion
+
+### Versione
+GET http://localhost:8080/version

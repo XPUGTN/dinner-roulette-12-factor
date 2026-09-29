@@ -1,0 +1,23 @@
+{
+  "name": "dinner-roulette",
+  "version": "1.0.0",
+  "description": "Dove si cena stasera? (Bad Edition)",
+  "main": "src/index.ts",
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
+    "start": "ts-node src/index.ts",
+    "test": "node --require ts-node/register --test test/*.test.ts"
+  },
+  "dependencies": {
+    "express": "*"
+  },
+  "devDependencies": {
+    "@types/express": "*",
+    "@types/node": "*",
+    "@types/supertest": "*",
+    "supertest": "*",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0",
+    "uuid": "^11.1.1"
+  }
+}
