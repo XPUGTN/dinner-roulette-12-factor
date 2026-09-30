@@ -3,16 +3,39 @@ import fs from "fs";
 import os from "os";
 import { execSync } from "child_process";
 import { v4 as uuid } from "uuid";
+import { Pool } from "pg";
 
-// I ristoranti disponibili per la votazione
-const restaurants = [
-  { id: "sakura", name: "Sakura", category: "japanese" },
-  { id: "napoli", name: "Pizzeria Napoli", category: "pizza" },
-  { id: "trattoria", name: "Trattoria da Mario", category: "italian" },
-];
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// user -> restaurantId
-const votes = new Map<string, string>();
+type Restaurant = { id: string; name: string; category: string; votes: number };
+
+type FindRestaurantFn = (id: string) => Promise<Restaurant | undefined>;
+
+export const findRestaurantBy: FindRestaurantFn = async (id) => {
+  const result = await pool.query<Restaurant>(
+    "SELECT * FROM restaurants WHERE id = $1",
+    [id],
+  );
+  return result.rows[0];
+}
+
+type VoteRestaurantFn = (id: string) => Promise<void>;
+
+export const voteRestaurantBy: VoteRestaurantFn = async (id) => {
+  await pool.query(
+    "UPDATE restaurants SET votes = votes + 1 WHERE id = $1",
+    [id],
+  );
+}
+
+type FindMostVotedRestaurantsFn = () => Promise<Restaurant[]>;
+
+export const findMostVotedRestaurants: FindMostVotedRestaurantsFn = async () => {
+  const restaurants = await pool.query<Restaurant>(
+    "SELECT * FROM restaurants WHERE votes = (SELECT MAX(votes) FROM restaurants)"
+  );
+  return restaurants.rows
+}
 
 let LOG_FILE: string;
 if (os.hostname().startsWith("dinner-prod")) {
@@ -26,46 +49,46 @@ function log(message: string) {
   fs.appendFileSync(LOG_FILE, `${new Date().toISOString()} ${message}\n`);
 }
 
-export const app = express();
-app.use(express.json());
+export function startApp(
+    findRestaurantBy: FindRestaurantFn,
+    voteRestaurant: VoteRestaurantFn,
+    findMostVotedRestaurants: FindMostVotedRestaurantsFn,
+) {
+  const app = express();
+  app.use(express.json());
 
-app.use((req, _res, next) => {
-  log(`[${uuid()}] ${req.method} ${req.url}`);
-  next();
-});
+  app.use((req, _res, next) => {
+    log(`[${uuid()}] ${req.method} ${req.url}`);
+    next();
+  });
 
-app.post("/votes", (req, res) => {
-  const { user, restaurantId } = req.body ?? {};
-  if (!user || !restaurantId) {
-    res.status(400).json({ error: "user e restaurantId sono obbligatori" });
-    return;
-  }
-  if (!restaurants.find((r) => r.id === restaurantId)) {
-    res.status(404).json({ error: `ristorante ${restaurantId} sconosciuto` });
-    return;
-  }
-  votes.set(user, restaurantId);
-  log(`voto di ${user} per ${restaurantId}`);
-  res.status(201).json({ user, restaurantId });
-});
+  app.post("/votes", async (req, res) => {
+    const { user, restaurantId } = req.body ?? {};
+    if (!user || !restaurantId) {
+      res.status(400).json({ error: "user e restaurantId sono obbligatori" });
+      return;
+    }
+    if (!await findRestaurantBy(restaurantId)) {
+      res.status(404).json({ error: `ristorante ${restaurantId} sconosciuto` });
+      return;
+    }
 
-app.get("/suggestion", (_req, res) => {
-  const counts = new Map<string, number>();
-  for (const restaurantId of votes.values()) {
-    counts.set(restaurantId, (counts.get(restaurantId) ?? 0) + 1);
-  }
+    await voteRestaurant(restaurantId);
+    log(`voto di ${user} per ${restaurantId}`);
+    res.status(201).json({ user, restaurantId });
+  });
 
-  let candidates = restaurants;
-  if (counts.size > 0) {
-    const max = Math.max(...counts.values());
-    candidates = restaurants.filter((r) => counts.get(r.id) === max);
-  }
+  app.get("/suggestion", async (_req, res) => {
+    const candidates = await findMostVotedRestaurants()
 
-  const winner = candidates[Math.floor(Math.random() * candidates.length)];
-  res.json({ restaurant: winner, votes: counts.get(winner.id) ?? 0 });
-});
+    const winner = candidates[Math.floor(Math.random() * candidates.length)];
+    res.json({ restaurant: winner, votes: winner.votes });
+  });
 
-app.get("/version", (_req, res) => {
-  const commit = execSync("git rev-parse HEAD").toString().trim();
-  res.json({ commit });
-});
+  app.get("/version", (_req, res) => {
+    const commit = execSync("git rev-parse HEAD").toString().trim();
+    res.json({ commit });
+  });
+
+  return app;
+}
