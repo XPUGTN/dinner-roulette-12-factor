@@ -40,14 +40,25 @@ Content-Type: application/json
   "restaurantId": "sakura"
 }
 ```
+curl:
+```bash
+curl http://localhost:8080/votes -d '{"user": "alice", "restaurantId": "sakura"}'
+```
+
+
 
 **Ottenere il suggerimento**
 
 ```http
 GET /suggestion
 ```
+curl:
+```bash
+curl http://localhost:8080/suggestion
+```
 
 Il suggerimento è il ristorante con più voti. In caso di parità o assenza di voti, viene scelto casualmente uno dei candidati.
+
 
 ### 🐛 Difetti presenti nello starter
 
