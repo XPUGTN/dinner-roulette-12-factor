@@ -42,7 +42,7 @@ Content-Type: application/json
 ```
 curl:
 ```bash
-curl http://localhost:8080/votes -d '{"user": "alice", "restaurantId": "sakura"}'
+curl -X POST http://localhost:8080/votes -H 'Content-Type: application/json' -d '{"user": "alice", "restaurantId": "sakura"}'
 ```
 
 
